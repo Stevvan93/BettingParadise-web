@@ -1,75 +1,69 @@
 // pages/airbitrage.js
-
-import { useState } from "react";
+import { useEffect, useState } from 'react';
 
 export default function Airbitrage() {
-  const [stake, setStake] = useState(1000);
+  const [matches, setMatches] = useState([]);
+  const [stake, setStake] = useState(100);
 
-  const data = [
-    {
-      match: "Manchester City vs Real Madrid",
-      league: "UEFA Champions League",
-      market: "Över 2.5 mål",
-      bookmaker1: { name: "Bet365", odds: 2.10, url: "https://www.bet365.com" },
-      bookmaker2: { name: "Unibet", odds: 2.05, url: "https://www.unibet.com" },
-    },
-    {
-      match: "Arsenal vs Bayern München",
-      league: "UEFA Champions League",
-      market: "Båda lagen gör mål",
-      bookmaker1: { name: "Betfair", odds: 1.95, url: "https://www.betfair.com" },
-      bookmaker2: { name: "LeoVegas", odds: 2.00, url: "https://www.leovegas.com" },
-    },
-  ];
+  useEffect(() => {
+    const fetchOdds = async () => {
+      try {
+        const response = await fetch(
+          'https://api.the-odds-api.com/v4/sports/soccer_epl/odds/?regions=eu&markets=h2h&oddsFormat=decimal&apiKey=zyrVFqxK6K6Vc3p4oVSbK3bgHTIeLbL1'
+        );
+        const data = await response.json();
+        setMatches(data);
+      } catch (error) {
+        console.error('Fel vid hämtning av odds:', error);
+      }
+    };
 
-  const calculateStakes = (odds1, odds2, totalStake) => {
-    const inverseSum = 1 / odds1 + 1 / odds2;
-    const stake1 = (totalStake / inverseSum) / odds1;
-    const stake2 = (totalStake / inverseSum) / odds2;
-    return [stake1.toFixed(2), stake2.toFixed(2)];
-  };
+    fetchOdds();
+  }, []);
 
   return (
-    <div className="min-h-screen bg-pink-50 p-6 font-sans">
-      <h1 className="text-4xl font-bold text-center text-pink-600 mb-6">Airbitrage-verktyget</h1>
-
-      <div className="max-w-2xl mx-auto mb-8">
-        <label className="block text-lg font-semibold mb-2">Ange total insats (kr):</label>
+    <div className="min-h-screen bg-pink-50 py-12 px-4">
+      <h1 className="text-4xl font-bold text-center text-pink-600 mb-8">Airbitrage-verktyget</h1>
+      <p className="text-center max-w-2xl mx-auto text-lg mb-10">
+        Analysera odds och hitta riskfria vinster automatiskt. Vårt verktyg scannar flera spelbolag i realtid.
+      </p>
+      <div className="text-center mb-10">
+        <label className="mr-2 font-medium">Total insats (kr):</label>
         <input
           type="number"
           value={stake}
           onChange={(e) => setStake(e.target.value)}
-          className="w-full border rounded px-3 py-2"
+          className="border border-gray-300 px-3 py-1 rounded"
         />
       </div>
 
-      <div className="grid gap-6 max-w-4xl mx-auto">
-        {data.map((arb, i) => {
-          const [s1, s2] = calculateStakes(arb.bookmaker1.odds, arb.bookmaker2.odds, stake);
-          const profit = ((stake / (1 / arb.bookmaker1.odds + 1 / arb.bookmaker2.odds)) - stake).toFixed(2);
-          return (
-            <div key={i} className="bg-white rounded-xl p-6 shadow hover:shadow-lg transition">
-              <h2 className="text-2xl font-bold mb-2">{arb.match}</h2>
-              <p className="text-sm text-gray-500 mb-1">{arb.league}</p>
-              <p className="text-pink-600 font-semibold mb-4">{arb.market}</p>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p><strong>{arb.bookmaker1.name}</strong></p>
-                  <p>Odds: {arb.bookmaker1.odds}</p>
-                  <p>Insats: {s1} kr</p>
-                  <a href={arb.bookmaker1.url} target="_blank" className="text-blue-600 underline">Till spel</a>
-                </div>
-                <div>
-                  <p><strong>{arb.bookmaker2.name}</strong></p>
-                  <p>Odds: {arb.bookmaker2.odds}</p>
-                  <p>Insats: {s2} kr</p>
-                  <a href={arb.bookmaker2.url} target="_blank" className="text-blue-600 underline">Till spel</a>
-                </div>
-              </div>
-              <p className="mt-4 text-green-600 font-semibold">Vinst: +{profit} kr</p>
-            </div>
-          );
-        })}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-6xl mx-auto">
+        {matches.map((match, index) => (
+          <div key={index} className="bg-white rounded-xl p-6 shadow hover:shadow-lg transition">
+            <h2 className="text-xl font-semibold text-pink-600 mb-2">
+              {match.home_team} vs {match.away_team}
+            </h2>
+            <p className="text-sm text-gray-500 mb-1">{match.sport_title} – {match.commence_time.slice(0, 10)}</p>
+            <ul className="text-sm text-gray-700 mb-4">
+              {match.bookmakers.map((bookie) => (
+                <li key={bookie.key} className="mb-1">
+                  <span className="font-medium">{bookie.title}:</span>{' '}
+                  {bookie.markets[0]?.outcomes?.map((o, i) => (
+                    <span key={i}>{o.name} ({o.price}) </span>
+                  ))}
+                </li>
+              ))}
+            </ul>
+            <a
+              href={match.bookmakers[0]?.url || '#'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-pink-500 underline text-sm"
+            >
+              Gå till spel
+            </a>
+          </div>
+        ))}
       </div>
     </div>
   );
