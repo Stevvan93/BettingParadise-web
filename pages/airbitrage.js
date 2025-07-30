@@ -1,67 +1,98 @@
 // pages/airbitrage.js
 import { useEffect, useState } from 'react';
+import axios from 'axios';
 
 export default function Airbitrage() {
-  const [matches, setMatches] = useState([]);
+  const [oddsData, setOddsData] = useState([]);
+  const [sports, setSports] = useState([]);
+  const [selectedSport, setSelectedSport] = useState('soccer_epl');
+  const [market, setMarket] = useState('h2h');
   const [stake, setStake] = useState(100);
 
-  useEffect(() => {
-    const fetchOdds = async () => {
-      try {
-        const response = await fetch(
-          'https://api.the-odds-api.com/v4/sports/soccer_epl/odds/?regions=eu&markets=h2h&oddsFormat=decimal&apiKey=zyrVFqxK6K6Vc3p4oVSbK3bgHTIeLbL1'
-        );
-        const data = await response.json();
-        setMatches(data);
-      } catch (error) {
-        console.error('Fel vid hämtning av odds:', error);
-      }
-    };
+  const apiKey = process.env.NEXT_PUBLIC_ODDS_API_KEY;
 
-    fetchOdds();
+  useEffect(() => {
+    async function fetchSports() {
+      const res = await axios.get(`https://api.the-odds-api.com/v4/sports/?apiKey=${apiKey}`);
+      setSports(res.data.filter(s => s.active));
+    }
+
+    fetchSports();
   }, []);
 
+  useEffect(() => {
+    async function fetchOdds() {
+      const res = await axios.get(`https://api.the-odds-api.com/v4/sports/${selectedSport}/odds`, {
+        params: {
+          apiKey,
+          regions: 'eu',
+          markets: market,
+          oddsFormat: 'decimal'
+        }
+      });
+      setOddsData(res.data);
+    }
+
+    fetchOdds();
+  }, [selectedSport, market]);
+
   return (
-    <div className="min-h-screen bg-pink-50 py-12 px-4">
-      <h1 className="text-4xl font-bold text-center text-pink-600 mb-8">Airbitrage-verktyget</h1>
-      <p className="text-center max-w-2xl mx-auto text-lg mb-10">
-        Analysera odds och hitta riskfria vinster automatiskt. Vårt verktyg scannar flera spelbolag i realtid.
-      </p>
-      <div className="text-center mb-10">
-        <label className="mr-2 font-medium">Total insats (kr):</label>
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-4">Airbitrage</h1>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+        <div>
+          <label className="block mb-1">Välj sport/turnering</label>
+          <select
+            className="w-full border rounded p-2"
+            value={selectedSport}
+            onChange={(e) => setSelectedSport(e.target.value)}
+          >
+            {sports.map((sport) => (
+              <option key={sport.key} value={sport.key}>{sport.title}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block mb-1">Välj marknad</label>
+          <select
+            className="w-full border rounded p-2"
+            value={market}
+            onChange={(e) => setMarket(e.target.value)}
+          >
+            <option value="h2h">1X2 (Matchvinnare)</option>
+            <option value="totals">Över/Under</option>
+            <option value="spreads">Handikapp</option>
+            <option value="btts">Båda lagen gör mål</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="mb-4">
+        <label className="block mb-1">Stake (insats per spel)</label>
         <input
           type="number"
+          className="w-full border rounded p-2"
           value={stake}
           onChange={(e) => setStake(e.target.value)}
-          className="border border-gray-300 px-3 py-1 rounded"
         />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-6xl mx-auto">
-        {matches.map((match, index) => (
-          <div key={index} className="bg-white rounded-xl p-6 shadow hover:shadow-lg transition">
-            <h2 className="text-xl font-semibold text-pink-600 mb-2">
-              {match.home_team} vs {match.away_team}
+      <div className="space-y-6">
+        {oddsData.map((match) => (
+          <div key={match.id} className="border rounded p-4 shadow">
+            <h2 className="font-semibold text-lg mb-2">
+              {match.home_team} vs {match.away_team} ({match.sport_title})
             </h2>
-            <p className="text-sm text-gray-500 mb-1">{match.sport_title} – {match.commence_time.slice(0, 10)}</p>
-            <ul className="text-sm text-gray-700 mb-4">
-              {match.bookmakers.map((bookie) => (
-                <li key={bookie.key} className="mb-1">
-                  <span className="font-medium">{bookie.title}:</span>{' '}
-                  {bookie.markets[0]?.outcomes?.map((o, i) => (
-                    <span key={i}>{o.name} ({o.price}) </span>
-                  ))}
-                </li>
-              ))}
-            </ul>
-            <a
-              href={match.bookmakers[0]?.url || '#'}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-pink-500 underline text-sm"
-            >
-              Gå till spel
-            </a>
+            <p className="text-sm text-gray-500 mb-2">{match.commence_time}</p>
+
+            {match.bookmakers?.[0]?.markets?.[0]?.outcomes.map((outcome) => (
+              <div key={outcome.name} className="flex justify-between items-center mb-1">
+                <span>{outcome.name}</span>
+                <span>{outcome.price}x | Möjlig vinst: {(stake * outcome.price).toFixed(2)} kr</span>
+              </div>
+            ))}
           </div>
         ))}
       </div>
