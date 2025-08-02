@@ -1,119 +1,125 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 
+const API_KEY = "zyrVFqxK6K6Vc3p4oVSbK3bgHTIeLbL1"; // gratisversionen du valt
+const REGIONS = "eu"; // EU-odds
+const MARKETS = "h2h,spreads,totals,player_props"; // flera marknader
+const SPORTS = ["soccer_epl", "soccer_champions_league", "soccer_uefa_euro", "soccer_fifa_world_cup"];
+
 export default function Airbitrage() {
-  const [arbitrageGames, setArbitrageGames] = useState([]);
+  const [games, setGames] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [stake, setStake] = useState(100);
 
   useEffect(() => {
     const fetchOdds = async () => {
       try {
-        const response = await axios.get("https://api.the-odds-api.com/v4/sports/soccer_epl/odds", {
-          params: {
-            regions: "eu",
-            markets: "h2h",
-            apiKey: "zyrVFqxK6K6Vc3p4oVSbK3bgHTIeLbL1",
-          },
-        });
-
-        const games = response.data;
-        const arbitrage = [];
-
-        for (let game of games) {
-          if (!game.bookmakers || game.bookmakers.length < 2) continue;
-
-          const odds = [];
-
-          // Plocka ut högsta oddset per utfall (1, X, 2)
-          for (let bookmaker of game.bookmakers) {
-            const market = bookmaker.markets.find((m) => m.key === "h2h");
-            if (!market) continue;
-
-            market.outcomes.forEach((outcome, index) => {
-              if (!odds[index] || outcome.price > odds[index].price) {
-                odds[index] = {
-                  price: outcome.price,
-                  bookmaker: bookmaker.title,
-                  name: outcome.name,
-                };
-              }
-            });
-          }
-
-          // Kontrollera om arbitrage-möjlighet finns
-          if (odds.length === 3) {
-            const impliedProb =
-              (1 / odds[0].price) + (1 / odds[1].price) + (1 / odds[2].price);
-            const profitPercent = (1 / impliedProb) * 100;
-
-            if (profitPercent > 100) {
-              arbitrage.push({
-                ...game,
-                odds,
-                profitPercent: profitPercent.toFixed(2),
-              });
+        const allGames = [];
+        for (const sport of SPORTS) {
+          const response = await axios.get(
+            `https://api.the-odds-api.com/v4/sports/${sport}/odds`,
+            {
+              params: {
+                apiKey: API_KEY,
+                regions: REGIONS,
+                markets: MARKETS,
+                oddsFormat: "decimal",
+              },
             }
-          }
+          );
+          allGames.push(...response.data);
         }
-
-        setArbitrageGames(arbitrage);
-      } catch (err) {
-        console.error("Fel vid hämtning av odds:", err);
+        setGames(allGames);
+      } catch (error) {
+        console.error("Fel vid hämtning av odds:", error);
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchOdds();
   }, []);
 
-  const calcStake = (price) => ((stake / price).toFixed(2));
+  const calculateReturns = (odds) => {
+    const inv = odds.reduce((acc, odd) => acc + 1 / odd, 0);
+    if (inv < 1) {
+      const returns = odds.map((odd) => ((stake / odd) / inv).toFixed(2));
+      const profit = (stake / inv - stake).toFixed(2);
+      return { returns, profit };
+    }
+    return null;
+  };
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Airbitrage</h1>
+    <div className="p-4">
+      <h1 className="text-3xl font-bold text-pink-600 mb-4">Airbitrage</h1>
 
-      <div className="mb-6">
-        <label className="block font-medium mb-2">Total insats:</label>
+      <div className="mb-4">
+        <label className="block mb-1 font-semibold">Insats (SEK):</label>
         <input
           type="number"
           value={stake}
-          onChange={(e) => setStake(Number(e.target.value))}
-          className="p-2 border rounded w-full max-w-xs"
+          onChange={(e) => setStake(e.target.value)}
+          className="border rounded px-3 py-2 w-32"
         />
       </div>
 
-      {arbitrageGames.length === 0 ? (
-        <p>Hämtar arbitrage-spel...</p>
+      {loading ? (
+        <p>Laddar odds...</p>
       ) : (
-        arbitrageGames.map((game, index) => (
-          <div key={index} className="border p-4 rounded-xl mb-6 shadow">
-            <h2 className="text-lg font-semibold mb-1">
-              {game.home_team} vs {game.away_team}
-            </h2>
-            <p className="text-sm text-gray-600 mb-2">{game.sport_title} – {game.commence_time.slice(0, 10)}</p>
-            <p className="text-green-600 font-bold mb-2">Arbitrage: {game.profitPercent}%</p>
+        <div className="space-y-6">
+          {games.map((game) => (
+            <div
+              key={game.id}
+              className="border rounded p-4 shadow-md bg-white"
+            >
+              <h2 className="text-xl font-semibold text-pink-700">
+                {game.home_team} vs {game.away_team}
+              </h2>
+              <p className="text-sm text-gray-600 mb-2">{game.sport_title} – {game.commence_time.slice(0, 16).replace("T", " ")}</p>
 
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr>
-                  <th className="py-1">Utfall</th>
-                  <th className="py-1">Odds</th>
-                  <th className="py-1">Bookie</th>
-                  <th className="py-1">Insats</th>
-                </tr>
-              </thead>
-              <tbody>
-                {game.odds.map((odd, i) => (
-                  <tr key={i}>
-                    <td className="py-1">{odd.name}</td>
-                    <td className="py-1">{odd.price}</td>
-                    <td className="py-1">{odd.bookmaker}</td>
-                    <td className="py-1">{calcStake(odd.price)} kr</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ))
+              {game.bookmakers.map((bookie) => (
+                <div key={bookie.key} className="mb-4">
+                  <h3 className="font-semibold">{bookie.title}</h3>
+                  {bookie.markets.map((market) => (
+                    <div key={market.key} className="ml-4 text-sm">
+                      <p className="font-medium mt-1 underline">{market.key}</p>
+                      <ul className="list-disc ml-6">
+                        {market.outcomes.map((outcome, idx) => (
+                          <li key={idx}>
+                            {outcome.name}: {outcome.price}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              ))}
+
+              {/* Visa arbitrage om möjligt */}
+              {game.bookmakers.length >= 2 &&
+                (() => {
+                  const market = game.bookmakers[0].markets.find((m) => m.key === "h2h");
+                  const otherMarket = game.bookmakers[1].markets.find((m) => m.key === "h2h");
+
+                  if (market && otherMarket) {
+                    const odds = [market.outcomes[0].price, otherMarket.outcomes[1].price];
+                    const result = calculateReturns(odds);
+                    if (result) {
+                      return (
+                        <div className="mt-2 bg-green-100 border-l-4 border-green-500 text-green-700 p-3">
+                          <p><strong>Arbitrage-möjlighet!</strong></p>
+                          <p>Vinst: {result.profit} kr</p>
+                          <p>Fördela: {result.returns[0]} kr på {market.outcomes[0].name}, {result.returns[1]} kr på {otherMarket.outcomes[1].name}</p>
+                        </div>
+                      );
+                    }
+                  }
+                  return null;
+                })()}
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
