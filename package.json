@@ -1,5 +1,5 @@
 {
-  "name": "bettingparadise-web",
+  "name": "bettingparadise",
   "version": "1.0.0",
   "scripts": {
     "dev": "next dev",
