@@ -7,7 +7,7 @@ export default function Home() {
         <div className="space-x-4 hidden md:flex">
           <a href="#" className="hover:text-pink-500">Hem</a>
           <a href="#grupper" className="hover:text-pink-500">Grupper</a>
-          <a href="#airbitrage" className="hover:text-pink-500">Airbitrage</a>
+         <a href="/spelloggen" className="hover:text-pink-500">Spelloggen</a>
           <a href="#kontakt" className="hover:text-pink-500">Kontakt</a>
           <a href="#login" className="hover:text-pink-500">Logga in</a>
         </div>
