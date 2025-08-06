@@ -1,4 +1,4 @@
-// NY KOD – startsida med navbar, hero, grupper, airbitrage, kontakt och footer
+// NY KOD – startsida med navbar, hero, grupper, spelloggen, kontakt och footer
 export default function Home() {
   return (
     <div className="bg-pink-50 min-h-screen font-sans">
@@ -7,54 +7,52 @@ export default function Home() {
         <div className="space-x-4 hidden md:flex">
           <a href="#" className="hover:text-pink-500">Hem</a>
           <a href="#grupper" className="hover:text-pink-500">Grupper</a>
-         <a href="/spelloggen" className="hover:text-pink-500">Spelloggen</a>
+          <a href="#spelloggen" className="hover:text-pink-500">Spelloggen</a>
           <a href="#kontakt" className="hover:text-pink-500">Kontakt</a>
           <a href="#login" className="hover:text-pink-500">Logga in</a>
         </div>
       </nav>
 
-      <header className="text-center py-24 px-4 bg-gradient-to-br from-pink-100 to-white">
-        <h1 className="text-5xl font-bold text-pink-600 mb-4">Dina bästa speltips på ett ställe</h1>
-        <p className="text-lg max-w-xl mx-auto mb-6">Följ experter, gå med i premiumgrupper och använd vårt arbitrageverktyg för att maximera din betting.</p>
-        <button className="bg-pink-500 text-white px-6 py-3 rounded-full font-semibold hover:scale-105 transition">Gå med nu</button>
-      </header>
+      <section className="text-center py-20 px-4">
+        <h1 className="text-4xl md:text-5xl font-bold text-pink-600 mb-4">Välkommen till BettingParadise</h1>
+        <p className="text-lg md:text-xl text-gray-700 max-w-2xl mx-auto">
+          Bli en del av Sveriges mest pålitliga betting-community. Gå med i våra grupper eller logga dina spel i spelloggen.
+        </p>
+      </section>
 
-      <section id="grupper" className="py-16 px-4 bg-white">
-        <h2 className="text-3xl font-bold text-center text-pink-600 mb-10">Våra Premiumgrupper</h2>
-        <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-8">
-          <div className="bg-pink-100 p-6 rounded-xl shadow hover:shadow-lg">
-            <h3 className="text-xl font-semibold mb-2">🎯 Bet365 Premium</h3>
-            <p className="mb-4">Få dagliga spel från Bet365 med hög vinstprocent.</p>
-            <p className="font-bold text-lg">299 kr / månad</p>
+      <section id="grupper" className="py-20 px-4 bg-white text-center">
+        <h2 className="text-3xl font-bold text-pink-600 mb-6">Våra Grupper</h2>
+        <div className="flex flex-col md:flex-row justify-center gap-6">
+          <div className="p-6 border rounded-lg shadow-md bg-pink-100">
+            <h3 className="text-xl font-semibold mb-2">Bet365 Premium</h3>
+            <p className="mb-4">299 kr/mån – Spel med fokus på Bet365 och högt värde.</p>
+            <button className="bg-pink-600 text-white px-4 py-2 rounded hover:bg-pink-700 transition">Gå med</button>
           </div>
-          <div className="bg-pink-100 p-6 rounded-xl shadow hover:shadow-lg">
-            <h3 className="text-xl font-semibold mb-2">🌴 Paradise Premium</h3>
-            <p className="mb-4">Vår exklusiva kanal med speltips från flera bolag.</p>
-            <p className="font-bold text-lg">249 kr / månad</p>
+          <div className="p-6 border rounded-lg shadow-md bg-pink-100">
+            <h3 className="text-xl font-semibold mb-2">Paradise Premium</h3>
+            <p className="mb-4">249 kr/mån – Värdespel på flera marknader, inkl. specialspel.</p>
+            <button className="bg-pink-600 text-white px-4 py-2 rounded hover:bg-pink-700 transition">Gå med</button>
           </div>
         </div>
       </section>
 
-      <section id="airbitrage" className="py-16 px-4 bg-pink-50">
-        <h2 className="text-3xl font-bold text-center text-pink-600 mb-6">Airbitrage-verktyget</h2>
-        <p className="max-w-2xl mx-auto text-center mb-10">Analysera odds och hitta riskfria vinster automatiskt. Vårt verktyg scannar flera spelbolag i realtid.</p>
-        <div className="text-center">
-          <button className="bg-pink-500 text-white px-6 py-3 rounded-full font-semibold hover:scale-105 transition">Prova gratis i 7 dagar</button>
-        </div>
+      <section id="spelloggen" className="py-20 px-4 bg-pink-50 text-center">
+        <h2 className="text-3xl font-bold text-pink-600 mb-6">Spelloggen</h2>
+        <p className="text-gray-700 max-w-xl mx-auto">
+          Håll koll på dina spel, bokför vinster och förluster, och analysera din bettingstatistik över tid. Ett perfekt verktyg för dig som vill bli mer professionell i ditt spelande.
+        </p>
       </section>
 
-      <section id="kontakt" className="py-16 px-4 bg-white">
-        <h2 className="text-3xl font-bold text-center text-pink-600 mb-6">Kontakta oss</h2>
-        <form className="max-w-xl mx-auto grid gap-4">
-          <input type="text" placeholder="Namn" className="p-3 border rounded" required />
-          <input type="email" placeholder="E-post" className="p-3 border rounded" required />
-          <textarea rows="4" placeholder="Meddelande" className="p-3 border rounded" required></textarea>
-          <button type="submit" className="bg-pink-500 text-white px-6 py-3 rounded-full font-semibold hover:scale-105 transition">Skicka</button>
-        </form>
+      <section id="kontakt" className="py-20 px-4 bg-white text-center">
+        <h2 className="text-3xl font-bold text-pink-600 mb-6">Kontakt</h2>
+        <p className="mb-4">Har du frågor? Hör av dig till oss!</p>
+        <a href="mailto:bettingparadise1@gmail.com" className="text-pink-600 hover:underline">
+          bettingparadise1@gmail.com
+        </a>
       </section>
 
-      <footer className="text-center text-sm py-6 text-gray-600 bg-pink-100">
-        &copy; 2025 BettingParadise. Alla rättigheter förbehållna.
+      <footer className="text-center py-6 text-sm text-gray-500 bg-pink-100">
+        © {new Date().getFullYear()} BettingParadise. Alla rättigheter förbehållna.
       </footer>
     </div>
   );
