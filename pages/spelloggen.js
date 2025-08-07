@@ -1,148 +1,110 @@
 import { useState } from "react";
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-} from "recharts";
+import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
 
 export default function Spelloggen() {
   const [bets, setBets] = useState([]);
   const [newBet, setNewBet] = useState({
-    match: "",
+    team1: "",
+    team2: "",
+    league: "",
+    betType: "",
     odds: "",
     stake: "",
     result: "pending",
+    link: "",
   });
 
-  const handleInputChange = (e) => {
+  const handleChange = (e) => {
     setNewBet({ ...newBet, [e.target.name]: e.target.value });
   };
 
-  const addBet = () => {
-    if (!newBet.match || !newBet.odds || !newBet.stake) return;
+  const handleAddBet = () => {
     setBets([...bets, newBet]);
-    setNewBet({ match: "", odds: "", stake: "", result: "pending" });
+    setNewBet({
+      team1: "",
+      team2: "",
+      league: "",
+      betType: "",
+      odds: "",
+      stake: "",
+      result: "pending",
+      link: "",
+    });
   };
 
-  const updateResult = (index, result) => {
-    const updated = [...bets];
-    updated[index].result = result;
-    setBets(updated);
+  const handleResultChange = (index, result) => {
+    const updatedBets = [...bets];
+    updatedBets[index].result = result;
+    setBets(updatedBets);
   };
 
-  const calculateStats = () => {
-    const total = bets.length;
-    const won = bets.filter((b) => b.result === "won");
-    const lost = bets.filter((b) => b.result === "lost");
-    const profit = bets.reduce((acc, bet) => {
-      const stake = parseFloat(bet.stake);
-      const odds = parseFloat(bet.odds);
-      if (bet.result === "won") return acc + stake * (odds - 1);
-      if (bet.result === "lost") return acc - stake;
-      return acc;
-    }, 0);
-    const totalStaked = bets.reduce(
-      (acc, bet) => acc + (bet.result !== "pending" ? parseFloat(bet.stake) : 0),
-      0
-    );
-    const roi = totalStaked ? ((profit / totalStaked) * 100).toFixed(2) : 0;
-    return { total, won: won.length, lost: lost.length, roi, profit: profit.toFixed(2) };
-  };
+  const totalStake = bets.reduce((sum, b) => sum + parseFloat(b.stake || 0), 0);
+  const totalProfit = bets.reduce((sum, b) => {
+    const stake = parseFloat(b.stake);
+    const odds = parseFloat(b.odds);
+    if (b.result === "won") return sum + stake * (odds - 1);
+    if (b.result === "lost") return sum - stake;
+    return sum;
+  }, 0);
+  const roi = totalStake > 0 ? ((totalProfit / totalStake) * 100).toFixed(2) : "0.00";
 
-  const stats = calculateStats();
-
+  // 🔧 Fixad logik för att undvika krascher
+  let runningBalance = 0;
   const chartData = bets.map((b, i) => {
-    let prevProfit = i > 0 ? parseFloat(chartData[i - 1]?.balance || 0) : 0;
     const stake = parseFloat(b.stake);
     const odds = parseFloat(b.odds);
     const change = b.result === "won" ? stake * (odds - 1) : b.result === "lost" ? -stake : 0;
+    runningBalance += change;
     return {
       name: `Spel ${i + 1}`,
-      balance: prevProfit + change,
+      balance: runningBalance,
     };
   });
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <h1 className="text-3xl font-bold text-center mb-6 text-pink-600">Spelloggen</h1>
+    <div className="min-h-screen bg-white text-black p-6">
+      <h1 className="text-3xl font-bold mb-4">Spelloggen</h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <input
-          className="border p-2 rounded col-span-2"
-          name="match"
-          value={newBet.match}
-          onChange={handleInputChange}
-          placeholder="Match / Spel"
-        />
-        <input
-          className="border p-2 rounded"
-          name="odds"
-          value={newBet.odds}
-          onChange={handleInputChange}
-          placeholder="Odds"
-          type="number"
-        />
-        <input
-          className="border p-2 rounded"
-          name="stake"
-          value={newBet.stake}
-          onChange={handleInputChange}
-          placeholder="Insats"
-          type="number"
-        />
-      </div>
-      <button
-        onClick={addBet}
-        className="bg-pink-600 text-white px-6 py-2 rounded mb-6 hover:bg-pink-700"
-      >
-        Lägg till spel
-      </button>
-
-      <div className="grid md:grid-cols-3 gap-4 text-center mb-8">
-        <div className="bg-white shadow rounded p-4">
-          <p className="text-sm text-gray-500">Totalt antal spel</p>
-          <p className="text-2xl font-bold">{stats.total}</p>
-        </div>
-        <div className="bg-white shadow rounded p-4">
-          <p className="text-sm text-gray-500">ROI</p>
-          <p className="text-2xl font-bold">{stats.roi}%</p>
-        </div>
-        <div className="bg-white shadow rounded p-4">
-          <p className="text-sm text-gray-500">Total vinst</p>
-          <p className="text-2xl font-bold">{stats.profit} kr</p>
-        </div>
+      {/* Formulär för nytt spel */}
+      <div className="grid grid-cols-2 gap-4 mb-6">
+        {["team1", "team2", "league", "betType", "odds", "stake", "link"].map((field) => (
+          <input
+            key={field}
+            name={field}
+            value={newBet[field]}
+            onChange={handleChange}
+            placeholder={field.charAt(0).toUpperCase() + field.slice(1)}
+            className="border p-2 rounded"
+            type={field === "odds" || field === "stake" ? "number" : "text"}
+          />
+        ))}
+        <button onClick={handleAddBet} className="col-span-2 bg-pink-500 hover:bg-pink-600 text-white py-2 rounded">
+          Lägg till spel
+        </button>
       </div>
 
-      {bets.length > 0 && (
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="name" />
-            <YAxis />
-            <Tooltip />
-            <Line type="monotone" dataKey="balance" stroke="#ec4899" strokeWidth={2} />
-          </LineChart>
-        </ResponsiveContainer>
-      )}
-
-      <div className="mt-8">
-        <h2 className="text-xl font-semibold mb-4">Spel</h2>
-        <div className="space-y-3">
-          {bets.map((bet, index) => (
-            <div key={index} className="bg-white shadow rounded p-4 flex flex-col md:flex-row md:items-center justify-between">
+      {/* Lista med bets */}
+      <div className="space-y-4">
+        {bets.map((bet, index) => (
+          <div key={index} className="border rounded p-4 shadow-md">
+            <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-2">
               <div>
-                <p className="font-medium">{bet.match}</p>
-                <p className="text-sm text-gray-600">Odds: {bet.odds} | Insats: {bet.stake} kr</p>
+                <p className="font-semibold">{bet.team1} vs {bet.team2}</p>
+                <p className="text-sm text-gray-600">{bet.league}</p>
+                <p>Spel: {bet.betType}</p>
+                <p>Odds: {bet.odds} | Insats: {bet.stake} kr</p>
+                {bet.link && (
+                  <a href={bet.link} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
+                    Till spel
+                  </a>
+                )}
               </div>
               <div className="mt-2 md:mt-0">
+                <label className="block text-sm font-medium">Resultat:</label>
                 <select
-                  className="border p-2 rounded"
                   value={bet.result}
-                  onChange={(e) => updateResult(index, e.target.value)}
+                  onChange={(e) => handleResultChange(index, e.target.value)}
+                  className="border p-1 rounded"
                 >
                   <option value="pending">Ej rättad</option>
                   <option value="won">Vinst</option>
@@ -150,9 +112,33 @@ export default function Spelloggen() {
                 </select>
               </div>
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
+
+      {/* Statistik */}
+      <div className="mt-8 p-4 border rounded shadow-sm bg-gray-50">
+        <h2 className="text-xl font-semibold mb-2">Statistik</h2>
+        <p>Antal spel: {bets.length}</p>
+        <p>Totalt resultat: {totalProfit.toFixed(2)} kr</p>
+        <p>ROI: {roi} %</p>
+      </div>
+
+      {/* Diagram */}
+      {chartData.length > 0 && (
+        <div className="mt-8 bg-white p-4 border rounded shadow-md">
+          <h2 className="text-xl font-semibold mb-4">Resultatutveckling</h2>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="name" />
+              <YAxis />
+              <Tooltip />
+              <Line type="monotone" dataKey="balance" stroke="#ec4899" strokeWidth={2} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
 }
