@@ -8,140 +8,90 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
-  BarChart,
-  Bar,
-  Legend,
 } from "recharts";
 
-const STORAGE_KEY = "spelloggen_v2_data";
+const STORAGE_KEY = "bettingparadise_spelloggen_v3";
 
 export default function Spelloggen() {
-  // Bets state
   const [bets, setBets] = useState([]);
-  // Form for new bet
-  const [form, setForm] = useState({
-    date: "",
-    team1: "",
-    team2: "",
-    league: "",
-    betType: "",
-    odds: "",
-    stake: "",
-    bookie: "",
-    link: "",
-    result: "pending", // pending | won | lost | void
-    voidAmount: "", // only used when editing/void
-  });
-
-  // Modal state for editing a bet
+  const [showAddModal, setShowAddModal] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
-  const [editData, setEditData] = useState(null);
-  const [showModal, setShowModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
 
-  // Filters (keeps same as before if you used them)
+  // Filters (kept simple)
   const [filterStart, setFilterStart] = useState("");
   const [filterEnd, setFilterEnd] = useState("");
   const [filterLeague, setFilterLeague] = useState("");
   const [filterBookie, setFilterBookie] = useState("alla");
 
-  // Load from localStorage on mount
+  // Load from localStorage
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) setBets(JSON.parse(raw));
     } catch (e) {
-      console.warn("Kunde inte läsa localStorage:", e);
+      console.warn("Could not read localStorage:", e);
     }
   }, []);
 
-  // Save to localStorage when bets change
+  // Save on change
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(bets));
     } catch (e) {
-      console.warn("Kunde inte skriva localStorage:", e);
+      console.warn("Could not write to localStorage:", e);
     }
   }, [bets]);
 
-  // handle form change for new bet
-  const handleFormChange = (e) => {
-    const { name, value } = e.target;
-    setForm((p) => ({ ...p, [name]: value }));
-  };
-
-  // Add a new bet
-  const addBet = (e) => {
-    e.preventDefault();
-    if (!form.date || !form.team1 || !form.team2 || !form.stake || !form.odds) {
-      alert("Fyll i datum, båda lag, odds och insats.");
-      return;
-    }
-    const newBet = {
-      ...form,
+  // Add bet helper
+  const addBet = (bet) => {
+    const record = {
+      ...bet,
       id: Date.now(),
-      odds: Number(form.odds),
-      stake: Number(form.stake),
+      odds: Number(bet.odds),
+      stake: Number(bet.stake),
       result: "pending",
-      voidAmount: "", // default empty
+      voidAmount: "", // only used when result is void and edited
     };
-    setBets((p) => [...p, newBet]);
-    setForm({
-      date: "",
-      team1: "",
-      team2: "",
-      league: "",
-      betType: "",
-      odds: "",
-      stake: "",
-      bookie: "",
-      link: "",
-      result: "pending",
-      voidAmount: "",
-    });
+    setBets((p) => [...p, record]);
   };
 
-  // Open edit modal for a bet index
-  const openEdit = (index) => {
-    setEditIndex(index);
-    setEditData({ ...bets[index] });
-    setShowModal(true);
-  };
-
-  // Save edits from modal
-  const saveEdit = (updated) => {
+  // Edit/save helper
+  const saveEdit = (index, updated) => {
     setBets((prev) => {
       const copy = [...prev];
-      // normalize fields
-      copy[editIndex] = {
-        ...copy[editIndex],
+      copy[index] = {
+        ...copy[index],
         ...updated,
         odds: Number(updated.odds),
         stake: Number(updated.stake),
-        voidAmount: updated.voidAmount === "" ? "" : Number(updated.voidAmount),
+        voidAmount:
+          updated.result === "void"
+            ? updated.voidAmount === "" || updated.voidAmount === null
+              ? 0
+              : Number(updated.voidAmount)
+            : "",
       };
       return copy;
     });
-    setShowModal(false);
-    setEditIndex(null);
-    setEditData(null);
   };
 
-  // Delete a bet
+  // Delete
   const deleteBet = (index) => {
     if (!confirm("Ta bort detta spel?")) return;
     setBets((p) => p.filter((_, i) => i !== index));
   };
 
-  // Derived unique bookies for filter dropdown
+  // Unique bookies for filter dropdown
   const bookieOptions = useMemo(() => {
-    const s = new Set();
+    const setB = new Set();
     bets.forEach((b) => {
-      if (b.bookie && b.bookie.trim()) s.add(b.bookie.trim());
+      if (b.bookie && b.bookie.toString().trim()) setB.add(b.bookie.toString().trim());
     });
-    return ["alla", ...Array.from(s)];
+    return ["alla", ...Array.from(setB)];
   }, [bets]);
 
-  // Filtering logic
+  // Filter logic
   const filteredBets = useMemo(() => {
     return bets.filter((b) => {
       if (filterStart && (!b.date || b.date < filterStart)) return false;
@@ -171,7 +121,7 @@ export default function Spelloggen() {
       if (b.result === "won") return acc + stake * (odds - 1);
       if (b.result === "lost") return acc - stake;
       if (b.result === "void") {
-        // If voidAmount specified, use it; else treat as 0
+        // voidAmount used when provided; else 0
         const v = b.voidAmount !== "" && b.voidAmount !== undefined ? Number(b.voidAmount) : 0;
         return acc + v;
       }
@@ -194,248 +144,261 @@ export default function Spelloggen() {
     };
   }, [filteredBets]);
 
-  // Chart data: running balance based on filtered bets in order of appearance
-  const balanceChartData = useMemo(() => {
+  // Chart data - running balance in order of filteredBets
+  const chartData = useMemo(() => {
     const data = [];
     let running = 0;
-    filteredBets.forEach((b, i) => {
+    filteredBets.forEach((b, idx) => {
       const stake = Number(b.stake || 0);
       const odds = Number(b.odds || 0);
       let change = 0;
       if (b.result === "won") change = stake * (odds - 1);
       else if (b.result === "lost") change = -stake;
-      else if (b.result === "void") {
-        change = b.voidAmount !== "" && b.voidAmount !== undefined ? Number(b.voidAmount) : 0;
-      } // pending => 0
+      else if (b.result === "void") change = b.voidAmount !== "" && b.voidAmount !== undefined ? Number(b.voidAmount) : 0;
       running += change;
       data.push({
-        name: b.date || `Spel ${i + 1}`,
+        name: b.date || `Spel ${idx + 1}`,
         balance: Number(running.toFixed(2)),
-        change,
         status: b.result,
       });
     });
     return data;
   }, [filteredBets]);
 
-  const statusChartData = useMemo(() => {
-    return [
-      { status: "Vinst", count: stats.won },
-      { status: "Förlust", count: stats.lost },
-      { status: "Void", count: stats.voids },
-      { status: "Ej rättad", count: stats.pending },
-    ];
-  }, [stats]);
-
-  // small helper for status color
-  const statusLabel = (r) => {
-    if (r === "won") return { text: "Vinst", color: "text-green-600", bg: "bg-green-50" };
-    if (r === "lost") return { text: "Förlust", color: "text-red-600", bg: "bg-red-50" };
-    if (r === "void") return { text: "Void", color: "text-gray-700", bg: "bg-gray-100" };
-    return { text: "Ej rättad", color: "text-gray-500", bg: "bg-yellow-50" };
+  // helper for status label
+  const statusInfo = (res) => {
+    if (res === "won") return { text: "Vinst", color: "text-green-700", bg: "bg-green-50" };
+    if (res === "lost") return { text: "Förlust", color: "text-red-700", bg: "bg-red-50" };
+    if (res === "void") return { text: "Void", color: "text-gray-800", bg: "bg-gray-100" };
+    return { text: "Ej rättad", color: "text-yellow-700", bg: "bg-yellow-50" };
   };
 
   return (
     <div className="max-w-6xl mx-auto p-6">
-      <h1 className="text-3xl font-bold mb-4 text-pink-600">📘 Spelloggen</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-3xl font-bold text-pink-600">📘 Spelloggen</h1>
+        <div className="flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-2">
+            <input type="date" value={filterStart} onChange={(e) => setFilterStart(e.target.value)} className="border px-2 py-1 rounded" />
+            <input type="date" value={filterEnd} onChange={(e) => setFilterEnd(e.target.value)} className="border px-2 py-1 rounded" />
+            <input placeholder="Sök liga..." value={filterLeague} onChange={(e) => setFilterLeague(e.target.value)} className="border px-2 py-1 rounded" />
+            <select value={filterBookie} onChange={(e) => setFilterBookie(e.target.value)} className="border px-2 py-1 rounded">
+              {bookieOptions.map((b) => (
+                <option key={b} value={b}>
+                  {b === "alla" ? "Alla spelbolag" : b}
+                </option>
+              ))}
+            </select>
+          </div>
 
-      {/* Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
-        <input type="date" value={filterStart} onChange={(e) => setFilterStart(e.target.value)} className="border p-2 rounded" />
-        <input type="date" value={filterEnd} onChange={(e) => setFilterEnd(e.target.value)} className="border p-2 rounded" />
-        <input placeholder="Sök liga..." value={filterLeague} onChange={(e) => setFilterLeague(e.target.value)} className="border p-2 rounded" />
-        <select value={filterBookie} onChange={(e) => setFilterBookie(e.target.value)} className="border p-2 rounded">
-          {bookieOptions.map((b) => (
-            <option key={b} value={b}>
-              {b === "alla" ? "Alla spelbolag" : b}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Add new bet form */}
-      <form onSubmit={addBet} className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
-        <input name="date" type="date" value={form.date} onChange={handleFormChange} className="border p-2 rounded" required />
-        <input name="team1" placeholder="Hemmalag" value={form.team1} onChange={handleFormChange} className="border p-2 rounded" required />
-        <input name="team2" placeholder="Bortalag" value={form.team2} onChange={handleFormChange} className="border p-2 rounded" required />
-        <input name="league" placeholder="Liga/Turnering" value={form.league} onChange={handleFormChange} className="border p-2 rounded" />
-
-        <input name="betType" placeholder="Spel / Marknad" value={form.betType} onChange={handleFormChange} className="border p-2 rounded md:col-span-2" />
-        <input name="odds" placeholder="Odds (t.ex. 2.10)" value={form.odds} onChange={handleFormChange} className="border p-2 rounded" type="number" step="0.01" />
-        <input name="stake" placeholder="Insats (kr)" value={form.stake} onChange={handleFormChange} className="border p-2 rounded" type="number" />
-        <input name="bookie" placeholder="Spelbolag" value={form.bookie} onChange={handleFormChange} className="border p-2 rounded md:col-span-3" />
-        <input name="link" placeholder="Länk (till spel)" value={form.link} onChange={handleFormChange} className="border p-2 rounded md:col-span-3" />
-        <button type="submit" className="bg-pink-600 hover:bg-pink-700 text-white py-2 rounded md:col-span-1">Lägg till spel</button>
-      </form>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white p-4 rounded shadow">
-          <div className="text-sm text-gray-500">Totalt (i vyn)</div>
-          <div className="text-2xl font-bold">{stats.total}</div>
-        </div>
-        <div className="bg-white p-4 rounded shadow">
-          <div className="text-sm text-gray-500">Totalt staked (settled)</div>
-          <div className="text-2xl font-bold">{stats.totalStaked} kr</div>
-        </div>
-        <div className="bg-white p-4 rounded shadow">
-          <div className="text-sm text-gray-500">Profit</div>
-          <div className="text-2xl font-bold">{stats.profit} kr</div>
-        </div>
-        <div className="bg-white p-4 rounded shadow">
-          <div className="text-sm text-gray-500">ROI</div>
-          <div className="text-2xl font-bold">{stats.roi} %</div>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="inline-flex items-center gap-2 bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded shadow"
+          >
+            ➕ Lägg till nytt spel
+          </button>
         </div>
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        <div className="bg-white p-4 rounded shadow">
-          <h3 className="font-semibold mb-2">Saldo över tid</h3>
-          {balanceChartData.length === 0 ? (
-            <p className="text-sm text-gray-500">Inga rättade spel i vyn än — diagram visas när du rättar spel.</p>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left: Bets list */}
+        <div>
+          {filteredBets.length === 0 ? (
+            <div className="bg-white p-6 rounded shadow text-center text-gray-600">Inga spel i vyn ännu — lägg till ett spel ovan.</div>
           ) : (
-            <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={balanceChartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                <YAxis />
-                <Tooltip />
-                <Line type="monotone" dataKey="balance" stroke="#ec4899" strokeWidth={2} dot={{ r: 3 }} />
-              </LineChart>
-            </ResponsiveContainer>
+            <div className="space-y-3">
+              {filteredBets.map((b, idx) => {
+                const s = statusInfo(b.result);
+                // find original index in bets array for actions (since filteredBets is subset)
+                const originalIndex = bets.findIndex((bb) => bb.id === b.id);
+                return (
+                  <div key={b.id} className={`bg-white p-4 rounded shadow flex flex-col md:flex-row md:items-center md:justify-between ${b.result === "void" ? "opacity-95" : ""}`}>
+                    <div className="mb-3 md:mb-0">
+                      <div className="font-semibold text-lg">
+                        {b.team1} <span className="text-sm text-gray-400">vs</span> {b.team2}
+                        <span className="ml-2 text-sm text-gray-500">({b.league || "-"})</span>
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        {b.betType || "-"} • Odds: {b.odds} • Insats: {b.stake} kr • {b.bookie || "-"}
+                      </div>
+                      {b.link && (
+                        <div className="mt-1">
+                          <a href={b.link} target="_blank" rel="noreferrer" className="text-blue-600 underline text-sm">Till spel</a>
+                        </div>
+                      )}
+                      {b.comment && <div className="mt-1 text-sm text-gray-500">Kommentar: {b.comment}</div>}
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className={`px-3 py-1 rounded text-sm ${s.bg} ${s.color}`}>{s.text}</div>
+                      <button onClick={() => { setEditIndex(originalIndex); setShowEditModal(true); setEditIndex(originalIndex); }} className="text-sm text-blue-600 hover:underline">Redigera</button>
+                      <button onClick={() => deleteBet(originalIndex)} className="text-sm text-red-600 hover:underline">Ta bort</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
 
-        <div className="bg-white p-4 rounded shadow">
-          <h3 className="font-semibold mb-2">Resultat - fördelning</h3>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={statusChartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="status" />
-              <YAxis allowDecimals={false} />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="count" fill="#ec4899" />
-            </BarChart>
-          </ResponsiveContainer>
+        {/* Right: Stats + Chart */}
+        <div>
+          <div className="bg-white p-4 rounded shadow mb-4 grid grid-cols-2 gap-3">
+            <div>
+              <div className="text-sm text-gray-500">Totalt (i vyn)</div>
+              <div className="text-2xl font-bold">{stats.total}</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500">Totalt staked (settled)</div>
+              <div className="text-2xl font-bold">{stats.totalStaked} kr</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500">Profit</div>
+              <div className="text-2xl font-bold">{stats.profit} kr</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500">ROI</div>
+              <div className="text-2xl font-bold">{stats.roi} %</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500">Vunna</div>
+              <div className="text-xl font-semibold text-green-600">{stats.won}</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500">Förlorade</div>
+              <div className="text-xl font-semibold text-red-600">{stats.lost}</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500">Void</div>
+              <div className="text-xl font-semibold text-gray-700">{stats.voids}</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500">Win rate</div>
+              <div className="text-xl font-semibold">{stats.winRate} %</div>
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded shadow">
+            <h4 className="font-semibold mb-3">Saldo över tid</h4>
+            {chartData.length === 0 ? (
+              <p className="text-sm text-gray-500">Diagram visas när du har rättade spel (Vinst/Förlust/Void).</p>
+            ) : (
+              <div style={{ width: "100%", height: 260 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                    <YAxis />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="balance" stroke="#ec4899" strokeWidth={2} dot={{ r: 3 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Bets list */}
-      <div className="space-y-3">
-        {filteredBets.map((b, idx) => {
-          const { text, color, bg } = statusLabel(b.result);
-          return (
-            <div key={b.id || idx} className={`bg-white border rounded p-4 flex flex-col md:flex-row md:items-center md:justify-between ${b.result === "void" ? "opacity-95" : ""}`}>
-              <div className="mb-2 md:mb-0">
-                <div className="font-semibold">
-                  {b.team1} <span className="text-sm text-gray-500">vs</span> {b.team2}
-                  <span className="ml-2 text-sm text-gray-400">({b.league || "-"})</span>
-                </div>
-                <div className="text-sm text-gray-600">
-                  {b.betType || "-"} • Odds: {b.odds} • Insats: {b.stake} kr • Bookie: {b.bookie || "-"}
-                </div>
-                {b.link && (
-                  <div className="mt-1">
-                    <a href={b.link} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline text-sm">Till spel</a>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className={`px-3 py-1 rounded text-sm ${bg} ${color}`}>{text}</div>
-                <button onClick={() => openEdit(bets.findIndex(bb => bb === b))} className="text-sm text-blue-600 hover:underline">Redigera</button>
-                <button onClick={() => deleteBet(bets.findIndex(bb => bb === b))} className="text-sm text-red-600 hover:underline">Ta bort</button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="mt-6 text-sm text-gray-500">
-        Notera: Void kan vara positivt, 0 eller negativt beroende på vad du anger vid rättning (t.ex. -0.5 vid vissa Asian handicap). Void-värdet räknas in i profit/ROI.
-      </div>
-
-      {/* EDIT MODAL */}
-      {showModal && editData && (
-        <EditModal
-          initial={editData}
-          onClose={() => {
-            setShowModal(false);
-            setEditIndex(null);
-            setEditData(null);
+      {/* Add Modal */}
+      {showAddModal && (
+        <AddEditModal
+          mode="add"
+          initial={null}
+          onClose={() => setShowAddModal(false)}
+          onSave={(obj) => {
+            addBet(obj);
+            setShowAddModal(false);
           }}
-          onSave={(updated) => saveEdit(updated)}
+        />
+      )}
+
+      {/* Edit Modal */}
+      {showEditModal && editIndex !== null && (
+        <AddEditModal
+          mode="edit"
+          initial={bets[editIndex]}
+          onClose={() => {
+            setShowEditModal(false);
+            setEditIndex(null);
+          }}
+          onSave={(obj) => {
+            saveEdit(editIndex, obj);
+            setShowEditModal(false);
+            setEditIndex(null);
+          }}
         />
       )}
     </div>
   );
 }
 
-// Modal component (inner)
-function EditModal({ initial, onClose, onSave }) {
-  const [local, setLocal] = useState({
-    odds: initial.odds,
-    stake: initial.stake,
-    result: initial.result || "pending",
-    voidAmount: initial.voidAmount !== undefined ? initial.voidAmount : "",
-    date: initial.date || "",
-    team1: initial.team1 || "",
-    team2: initial.team2 || "",
-    league: initial.league || "",
-    betType: initial.betType || "",
-    bookie: initial.bookie || "",
-    link: initial.link || "",
-  });
+/* ---------- Modal component for Add/Edit ---------- */
+function AddEditModal({ mode = "add", initial, onClose, onSave }) {
+  const [local, setLocal] = useState(
+    initial || {
+      date: new Date().toISOString().slice(0, 10),
+      team1: "",
+      team2: "",
+      league: "",
+      betType: "",
+      odds: "",
+      stake: "",
+      bookie: "",
+      link: "",
+      comment: "",
+      result: "pending", // pending | won | lost | void
+      voidAmount: "",
+    }
+  );
 
-  const handle = (k, v) => setLocal((p) => ({ ...p, [k]: v }));
+  useEffect(() => {
+    if (initial) setLocal(initial);
+  }, [initial]);
+
+  const update = (k, v) => setLocal((p) => ({ ...p, [k]: v }));
 
   const handleSave = () => {
     // basic validation
-    if (!local.team1 || !local.team2 || !local.odds || local.stake === "") {
-      alert("Fyll i lag, odds och insats.");
+    if (!local.team1 || !local.team2 || local.odds === "" || local.stake === "") {
+      alert("Fyll i båda lagen, odds och insats.");
       return;
     }
-    // if void chosen but voidAmount empty, default to 0
+    // normalize numbers
     const out = {
-      ...initial,
+      ...local,
       odds: Number(local.odds),
       stake: Number(local.stake),
-      result: local.result,
-      voidAmount: local.result === "void" ? (local.voidAmount === "" ? 0 : Number(local.voidAmount)) : "",
-      date: local.date,
-      team1: local.team1,
-      team2: local.team2,
-      league: local.league,
-      betType: local.betType,
-      bookie: local.bookie,
-      link: local.link,
+      voidAmount:
+        local.result === "void" ? (local.voidAmount === "" || local.voidAmount === null ? 0 : Number(local.voidAmount)) : "",
     };
     onSave(out);
-    onClose();
   };
 
+  // modal animation classes: backdrop & panel
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black opacity-40" onClick={onClose} />
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 relative z-10 transform transition-all">
-        <h3 className="text-lg font-semibold mb-3">Redigera spel</h3>
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-2xl bg-white rounded-2xl shadow-2xl p-6 transform transition-all animate-fade-in">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-semibold">{mode === "add" ? "Lägg till nytt spel" : "Redigera spel"}</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-800">Avbryt</button>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <input value={local.date} onChange={(e) => handle("date", e.target.value)} type="date" className="border p-2 rounded" />
-          <input value={local.team1} onChange={(e) => handle("team1", e.target.value)} placeholder="Hemmalag" className="border p-2 rounded" />
-          <input value={local.team2} onChange={(e) => handle("team2", e.target.value)} placeholder="Bortalag" className="border p-2 rounded" />
-          <input value={local.league} onChange={(e) => handle("league", e.target.value)} placeholder="Liga" className="border p-2 rounded" />
-          <input value={local.betType} onChange={(e) => handle("betType", e.target.value)} placeholder="Spel / Marknad" className="border p-2 rounded md:col-span-2" />
-          <input value={local.odds} onChange={(e) => handle("odds", e.target.value)} placeholder="Odds" type="number" step="0.01" className="border p-2 rounded" />
-          <input value={local.stake} onChange={(e) => handle("stake", e.target.value)} placeholder="Insats (kr)" type="number" className="border p-2 rounded" />
-          <input value={local.bookie} onChange={(e) => handle("bookie", e.target.value)} placeholder="Bookie" className="border p-2 rounded" />
-          <input value={local.link} onChange={(e) => handle("link", e.target.value)} placeholder="Länk" className="border p-2 rounded md:col-span-2" />
+          <input type="date" value={local.date} onChange={(e) => update("date", e.target.value)} className="border p-2 rounded" />
+          <input placeholder="Hemmalag" value={local.team1} onChange={(e) => update("team1", e.target.value)} className="border p-2 rounded" />
+          <input placeholder="Bortalag" value={local.team2} onChange={(e) => update("team2", e.target.value)} className="border p-2 rounded" />
+          <input placeholder="Liga/Turnering" value={local.league} onChange={(e) => update("league", e.target.value)} className="border p-2 rounded" />
+          <input placeholder="Spel / Marknad" value={local.betType} onChange={(e) => update("betType", e.target.value)} className="border p-2 rounded md:col-span-2" />
+          <input placeholder="Odds (t.ex. 2.10)" value={local.odds} onChange={(e) => update("odds", e.target.value)} type="number" step="0.01" className="border p-2 rounded" />
+          <input placeholder="Insats (kr)" value={local.stake} onChange={(e) => update("stake", e.target.value)} type="number" className="border p-2 rounded" />
+          <input placeholder="Bookie" value={local.bookie} onChange={(e) => update("bookie", e.target.value)} className="border p-2 rounded" />
+          <input placeholder="Länk (till spel)" value={local.link} onChange={(e) => update("link", e.target.value)} className="border p-2 rounded md:col-span-2" />
+          <textarea placeholder="Kommentar (valfritt)" value={local.comment} onChange={(e) => update("comment", e.target.value)} className="border p-2 rounded md:col-span-2" />
 
           <div className="col-span-2">
-            <label className="block mb-1 text-sm font-medium">Resultat</label>
-            <select value={local.result} onChange={(e) => handle("result", e.target.value)} className="border p-2 rounded w-full">
+            <label className="block text-sm mb-1">Resultat (rätta i efterhand)</label>
+            <select value={local.result} onChange={(e) => update("result", e.target.value)} className="border p-2 rounded w-full">
               <option value="pending">Ej rättad</option>
               <option value="won">Vinst</option>
               <option value="lost">Förlust</option>
@@ -445,16 +408,16 @@ function EditModal({ initial, onClose, onSave }) {
 
           {local.result === "void" && (
             <div className="col-span-2">
-              <label className="block mb-1 text-sm font-medium">Void - ange belopp (positivt eller negativt)</label>
+              <label className="block text-sm mb-1">Void - ange belopp (positivt eller negativt)</label>
               <input
                 value={local.voidAmount}
-                onChange={(e) => handle("voidAmount", e.target.value)}
+                onChange={(e) => update("voidAmount", e.target.value)}
                 placeholder="t.ex. 0 eller -25 eller 15"
-                className="border p-2 rounded w-full"
                 type="number"
                 step="0.01"
+                className="border p-2 rounded w-full"
               />
-              <p className="text-xs text-gray-500 mt-1">Skriv t.ex. 0 för full återbetalning, -10 för minus, 10 för plus.</p>
+              <p className="text-xs text-gray-500 mt-1">Skriv 0 för full återbetalning, -10 för minus, 10 för plus.</p>
             </div>
           )}
         </div>
@@ -467,3 +430,9 @@ function EditModal({ initial, onClose, onSave }) {
     </div>
   );
 }
+
+/* Small css-in-js for animation (Tailwind doesn't include animate-fade-in by default) */
+/* If you use a global CSS file you can add:
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px) scale(.99);} to { opacity:1; transform: translateY(0) scale(1);} }
+.animate-fade-in { animation: fadeIn .18s ease-out; }
+*/
